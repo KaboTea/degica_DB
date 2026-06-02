@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DigiCA Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root {
+    --bg:       #080d1a;
+    --surface:  #0e1628;
+    --surface2: #162035;
+    --border:   #1e2d4a;
+    --accent:   #4a9eff;
+    --accent2:  #2563b0;
+    --text:     #d0dff5;
+    --text2:    #6a85b0;
+    --red:    #c0302a; --blue:   #2060c0; --yellow: #c0a010;
+    --green:  #208040; --black:  #303030; --purple: #6030a0; --white-c:#909090;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { font-size: 1.2rem; font-weight: 700; color: var(--accent); letter-spacing: .08em; }
+  .nav-tabs { display: flex; gap: 4px; }
+  .nav-tab {
+    padding: 6px 16px; border-radius: 6px; border: none; cursor: pointer;
+    background: transparent; color: var(--text2); font-size: .85rem; transition: all .15s;
+  }
+  .nav-tab:hover { background: var(--surface2); color: var(--text); }
+  .nav-tab.active { background: var(--accent); color: #fff; }
+  .header-right { display: flex; gap: 8px; }
+  .btn-icon {
+    padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text2); cursor: pointer; font-size: .8rem;
+    transition: all .15s;
+  }
+  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Screens ── */
+  .screen { display: none; flex: 1; }
+  .screen.active { display: flex; }
+
+  /* ── Card DB Screen ── */
+  #screen-db {
+    flex-direction: row;
+    gap: 0;
+  }
+  .panel-left {
+    width: 340px; min-width: 300px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-right {
+    flex: 1; display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-section h3 {
+    font-size: .75rem; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--text2); margin-bottom: 12px;
+  }
+
+  /* 検索 */
+  .search-row { display: flex; gap: 8px; }
+  .input-text {
+    flex: 1; padding: 8px 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text); font-size: .9rem; outline: none;
+    transition: border .15s;
+  }
+  .input-text:focus { border-color: var(--accent); }
+  .btn {
+    padding: 8px 14px; border-radius: 6px; border: none; cursor: pointer;
+    font-size: .85rem; font-weight: 600; transition: all .15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: #7a1515; color: #ffaaaa; border: 1px solid #a02020; }
+  .btn-danger:hover { background: #9a1515; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* 検索結果リスト */
+  .search-results {
+    flex: 1; overflow-y: auto; padding: 8px;
+  }
+  .card-item {
+    display: flex; gap: 10px; align-items: center;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    transition: background .1s; border: 1px solid transparent;
+  }
+  .card-item:hover { background: var(--surface2); border-color: var(--border); }
+  .card-item.selected { background: var(--surface2); border-color: var(--accent); }
+  .card-thumb {
+    width: 36px; height: 50px; border-radius: 4px; object-fit: cover;
+    background: var(--surface2); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .65rem; color: var(--text2); overflow: hidden;
+  }
+  .card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .card-info { flex: 1; min-width: 0; }
+  .card-name { font-size: .88rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { font-size: .73rem; color: var(--text2); margin-top: 2px; }
+  .card-source-badge {
+    font-size: .65rem; padding: 2px 6px; border-radius: 10px; white-space: nowrap;
+  }
+  .badge-local { background: #0d3020; color: #4ecb80; border: 1px solid #1a5535; }
+  .badge-api   { background: #0d1f35; color: #4a9eff; border: 1px solid #1a3560; }
+
+  /* カード詳細 */
+  .card-detail {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; gap: 20px;
+  }
+  .card-detail-img {
+    width: 200px; min-width: 200px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .card-detail-img img {
+    width: 100%; border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .card-detail-img .no-image {
+    width: 100%; aspect-ratio: .72;
+    border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .85rem; color: var(--text2);
+  }
+  .card-detail-body { flex: 1; }
+  .card-detail-body h2 { font-size: 1.2rem; margin-bottom: 4px; }
+  .card-detail-body .card-id { font-size: .8rem; color: var(--text2); margin-bottom: 14px; }
+  .card-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;
+  }
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 12px;
+  }
+  .stat-label { font-size: .7rem; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; }
+  .stat-value { font-size: .95rem; font-weight: 700; margin-top: 2px; }
+  .effect-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+    font-size: .85rem; line-height: 1.6; white-space: pre-wrap;
+  }
+  .effect-label { font-size: .7rem; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+
+  /* 色バッジ */
+  .color-dot {
+    display: inline-block; width: 10px; height: 10px;
+    border-radius: 50%; margin-right: 5px; vertical-align: middle;
+  }
+
+  /* ── PDF登録パネル ── */
+  #screen-register { flex-direction: column; padding: 24px; gap: 20px; overflow-y: auto; }
+  .register-container { max-width: 800px; width: 100%; margin: 0 auto; }
+  .register-container h2 { font-size: 1.1rem; margin-bottom: 16px; color: var(--accent); }
+
+  .drop-zone {
+    border: 2px dashed var(--border); border-radius: 12px;
+    padding: 40px; text-align: center; cursor: pointer;
+    transition: all .2s; background: var(--surface);
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent); background: var(--surface2);
+  }
+  .drop-zone input[type=file] { display: none; }
+  .drop-zone-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .drop-zone-text { color: var(--text2); font-size: .9rem; }
+  .drop-zone-text strong { color: var(--accent); }
+
+  /* プログレスログ */
+  .progress-container { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .progress-header { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: .85rem; font-weight: 600; }
+  .progress-bar-wrap { height: 4px; background: var(--surface2); }
+  .progress-bar { height: 100%; background: var(--accent); transition: width .3s; width: 0; }
+  .progress-log {
+    padding: 12px 16px; max-height: 300px; overflow-y: auto;
+    font-family: 'Consolas', monospace; font-size: .78rem; line-height: 1.7;
+  }
+  .log-ok   { color: #4ecb80; }
+  .log-skip { color: var(--text2); }
+  .log-err  { color: #ff6060; }
+  .log-info { color: var(--accent); }
+
+  /* PDF preview grid */
+  .preview-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    padding: 4px;
+  }
+  .preview-card {
+    border-radius: 6px; overflow: hidden;
+    border: 1px solid var(--border); background: var(--surface2);
+    position: relative;
+  }
+  .preview-card canvas { width: 100%; display: block; }
+  .preview-card-label {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(8,13,26,.8); font-size: .7rem;
+    padding: 4px 6px; color: var(--text);
+  }
+
+  /* ── 設定画面 ── */
+  #screen-settings { flex-direction: column; padding: 24px; overflow-y: auto; }
+  .settings-container { max-width: 600px; width: 100%; margin: 0 auto; }
+  .settings-container h2 { font-size: 1.1rem; margin-bottom: 20px; color: var(--accent); }
+  .settings-group { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .settings-group h3 { font-size: .8rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); margin-bottom: 14px; }
+  .settings-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .settings-row:last-child { margin-bottom: 0; }
+  .settings-row label { font-size: .83rem; color: var(--text2); }
+  .input-password { font-family: monospace; }
+  .settings-actions { display: flex; gap: 8px; margin-top: 6px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-ok  { background: #4ecb80; }
+  .status-err { background: #ff6060; }
+  .status-unknown { background: var(--text2); }
+
+  /* 用語辞書 */
+  .terms-editor { width: 100%; height: 220px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: monospace; font-size: .8rem; resize: vertical; outline: none; }
+  .terms-editor:focus { border-color: var(--accent); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Toast ── */
+  .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none; }
+  .toast {
+    padding: 10px 16px; border-radius: 8px; font-size: .85rem;
+    animation: toast-in .2s ease; pointer-events: auto;
+    max-width: 320px;
+  }
+  .toast-success { background: #0d3020; border: 1px solid #1a5535; color: #4ecb80; }
+  .toast-error   { background: #3a0d0d; border: 1px solid #6a1515; color: #ff8080; }
+  .toast-info    { background: #0d1f35; border: 1px solid #1a3560; color: #4a9eff; }
+  @keyframes toast-in { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+
+  /* ── loading ── */
+  .spinner {
+    width: 16px; height: 16px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .6s linear infinite; display: inline-block; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text2); font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="logo">⚡ DigiCA Tool</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showScreen('db')">カード検索</button>
+    <button class="nav-tab" onclick="showScreen('register')">DB登録（PDF）</button>
+    <button class="nav-tab" onclick="showScreen('settings')">設定</button>
+  </div>
+  <div class="header-right">
+    <span id="db-stats" style="font-size:.78rem; color:var(--text2); line-height:2.2;"></span>
+    <button class="btn-icon" onclick="reloadDB()">⟳ DB更新</button>
+  </div>
+</header>
+
+<!-- ── Toast container ── -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ═══ Screen: カード検索 ═══ -->
+<div class="screen active" id="screen-db">
+  <!-- 左パネル：検索 -->
+  <div class="panel-left">
+    <div class="panel-section">
+      <h3>カード検索</h3>
+      <div class="search-row">
+        <input class="input-text" id="search-input" placeholder="カード名・ID・効果…" oninput="onSearchInput()" onkeydown="if(e?.key==='Enter')doSearch()">
+        <button class="btn btn-primary" onclick="doSearch()">検索</button>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;" id="filter-area">
+        <!-- 色フィルタ -->
+        <button class="btn btn-secondary" style="font-size:.72rem; padding:4px 8px;" onclick="toggleColorFilter(null)" id="filter-all">すべて</button>
+        <button class="btn btn-secondary" style="font-size:.72rem; padding:4px 8px; border-left:3px solid var(--red);" onclick="toggleColorFilter('Red')" id="filter-Red">赤</button>
+        <button class="btn btn-secondary" style="font-size:.72rem; padding:4px 8px; border-left:3px solid var(--blue);" onclick="toggleColorFilter('Blue')" id="filter-Blue">青</button>
+        <button class="btn btn-secondary" style="font-size:.72rem; padding:4px 8px; border-left:3px solid var(--yellow);" onclick="toggleColorFilter('Yellow')" id="filter-Yellow">黄</button>
+        <button class="btn btn-secondary" style="font-size:.72rem; padding:4px 8px; border-left:3px solid var(--green);" onclick="toggleColorFilter('Green')" id="filter-Green">緑</button>
+        <button class="btn btn-secondary" style="font-size:.72rem; padding:4px 8px; border-left:3px solid var(--black);" onclick="toggleColorFilter('Black')" id="filter-Black">黒</button>
+        <button class="btn btn-secondary" style="font-size:.72rem; padding:4px 8px; border-left:3px solid var(--purple);" onclick="toggleColorFilter('Purple')" id="filter-Purple">紫</button>
+        <button class="btn btn-secondary" style="font-size:.72rem; padding:4px 8px; border-left:3px solid var(--white-c);" onclick="toggleColorFilter('White')" id="filter-White">白</button>
+      </div>
+    </div>
+    <div class="search-results" id="search-results">
+      <div class="empty-state">検索ワードを入力してください<br><span style="font-size:.78rem">登録済みカードは日本語で、未登録は英語APIで検索します</span></div>
+    </div>
+  </div>
+
+  <!-- 右パネル：詳細 -->
+  <div class="panel-right">
+    <div class="card-detail" id="card-detail">
+      <div class="empty-state" style="margin:auto;">
+        カードを選択すると詳細が表示されます
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Screen: PDF登録 ═══ -->
+<div class="screen" id="screen-register">
+  <div class="register-container">
+    <h2>📄 PDFからカードDB登録</h2>
+
+    <!-- ドロップゾーン -->
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('pdf-input').click()">
+      <input type="file" id="pdf-input" accept=".pdf" onchange="onPDFSelected(event)">
+      <div class="drop-zone-icon">📋</div>
+      <div class="drop-zone-text">
+        <strong>クリックしてPDFを選択</strong><br>
+        デジカレシピクリエイターのPDFをアップロードしてください
+      </div>
+    </div>
+
+    <!-- PDFプレビュー（処理前確認） -->
+    <div id="preview-section" style="display:none; margin-top:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <span style="font-size:.85rem; color:var(--text2);" id="preview-info"></span>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary" onclick="clearPDF()">キャンセル</button>
+          <button class="btn btn-primary" id="btn-start-register" onclick="startRegistration()">▶ 登録開始</button>
+        </div>
+      </div>
+      <div class="preview-grid" id="preview-grid"></div>
+    </div>
+
+    <!-- 進捗ログ -->
+    <div id="progress-section" style="display:none; margin-top:16px;">
+      <div class="progress-container">
+        <div class="progress-header">
+          <span id="progress-title">処理中...</span>
+          <span id="progress-count" style="float:right; color:var(--text2); font-size:.8rem;"></span>
+        </div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+        <div class="progress-log" id="progress-log"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Screen: 設定 ═══ -->
+<div class="screen" id="screen-settings">
+  <div class="settings-container">
+    <h2>⚙️ 設定</h2>
+
+    <div class="settings-group">
+      <h3>API Keys</h3>
+      <div class="settings-row">
+        <label>GitHub Personal Access Token</label>
+        <input class="input-text input-password" type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx">
+        <div class="settings-actions">
+          <button class="btn btn-secondary" onclick="saveGHToken()">保存</button>
+          <button class="btn btn-secondary" onclick="testGHToken()">接続テスト</button>
+          <span id="gh-status"><span class="status-dot status-unknown"></span>未確認</span>
+        </div>
+      </div>
+      <div class="settings-row">
+        <label>Anthropic API Key</label>
+        <input class="input-text input-password" type="password" id="anthropic-key" placeholder="sk-ant-xxxxxxxxxxxx">
+        <div class="settings-actions">
+          <button class="btn btn-secondary" onclick="saveAnthropicKey()">保存</button>
+          <button class="btn btn-secondary" onclick="testAnthropicKey()">接続テスト</button>
+          <span id="anthropic-status"><span class="status-dot status-unknown"></span>未確認</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h3>リポジトリ情報</h3>
+      <div style="font-size:.83rem; color:var(--text2); line-height:2;">
+        <div>GitHub User: <strong style="color:var(--text);">KaboTea</strong></div>
+        <div>Repository: <strong style="color:var(--text);">digica-tool</strong></div>
+        <div>Branch: <strong style="color:var(--text);">main</strong></div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h3>用語辞書（翻訳時に使用）</h3>
+      <div style="font-size:.78rem; color:var(--text2); margin-bottom:8px;">
+        JSON形式: { "英語": "日本語" }
+      </div>
+      <textarea class="terms-editor" id="terms-editor"></textarea>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="btn btn-primary" onclick="saveTerms()">保存</button>
+        <button class="btn btn-secondary" onclick="loadTermsFromGitHub()">GitHubから読込</button>
+        <button class="btn btn-secondary" onclick="saveTermsToGitHub()">GitHubに保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 定数 ──────────────────────────────────────────────
+const GH_USER = 'KaboTea';
+const GH_REPO = 'digica-tool';
+const GH_BRANCH = 'main';
+const GH_API = 'https://api.github.com';
+const RAW_BASE = `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/${GH_BRANCH}`;
+const ALLORIGINS = 'https://api.allorigins.win/get?url=';
+const DIGICA_API = 'https://digimoncard.io/api-public/search.php';
+const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
+
+// カードIDパターン例: BT4-020, ST1-001, EX1-001, P-001 etc.
+const CARD_ID_RE = /^[A-Z]{1,3}\d*-\d{3}$/;
+
+// ── State ──────────────────────────────────────────────
+let db = {};          // { [id]: cardObject }
+let dbLoaded = false;
+let activeColor = null;
+let selectedCardId = null;
+let pdfPages = [];    // { canvas, crops: [{canvas, idx}] }
+
+// ── 設定デフォルト ──────────────────────────────────────
+const DEFAULT_TERMS = {
+  "[On Play]":          "【登場時】",
+  "[When Attacking]":   "【アタック時】",
+  "[When Blocking]":    "【ブロック時】",
+  "[End of Attack]":    "【アタック終了時】",
+  "[Your Turn]":        "【自分のターン】",
+  "[Opponent's Turn]":  "【相手のターン】",
+  "[All Turns]":        "【全てのターン】",
+  "[Security]":         "【セキュリティ】",
+  "[When Digivolving]": "【進化時】",
+  "＜Blocker＞":        "《ブロッカー》",
+  "＜Piercing＞":       "《貫通》",
+  "＜Rush＞":           "《ラッシュ》",
+  "＜Jamming＞":        "《ジャミング》",
+  "＜Reboot＞":         "《リブート》",
+  "＜Armor Purge＞":    "《アーマーパージ》",
+  "＜De-Digivolve＞":   "《退化》",
+  "＜Digisorption＞":   "《デジソープション》",
+  "Security Effect":    "セキュリティ効果",
+  "Inherited Effect":   "進化元効果",
+  "Digivolve":          "進化",
+  "trash":              "トラッシュ",
+  "memory":             "メモリー",
+  "suspend":            "レスト",
+  "unsuspend":          "アクティブ",
+  "DP":                 "DP"
+};
+
+// ── localStorage helpers ────────────────────────────────
+const ls = {
+  get: k => localStorage.getItem(k),
+  set: (k,v) => localStorage.setItem(k,v),
+};
+function getGHToken()       { return ls.get('gh_token') || ''; }
+function getAnthropicKey()  { return ls.get('anthropic_key') || ''; }
+function getTerms() {
+  try { return JSON.parse(ls.get('terms') || 'null') || DEFAULT_TERMS; }
+  catch { return DEFAULT_TERMS; }
+}
+
+// ── Toast ───────────────────────────────────────────────
+function toast(msg, type='info', ms=3000) {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+// ── Screen switching ────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`screen-${name}`).classList.add('active');
+  const tabs = ['db','register','settings'];
+  document.querySelectorAll('.nav-tab')[tabs.indexOf(name)]?.classList.add('active');
+  if (name === 'settings') loadSettingsUI();
+}
+
+// ── DB読み込み ──────────────────────────────────────────
+async function loadDB() {
+  try {
+    const r = await fetch(`${RAW_BASE}/cards/db.json?_=${Date.now()}`);
+    if (!r.ok) { db = {}; dbLoaded = true; updateDBStats(); return; }
+    db = await r.json();
+    dbLoaded = true;
+    updateDBStats();
+    toast(`DB読込完了: ${Object.keys(db).length}枚`, 'success');
+  } catch(e) {
+    db = {}; dbLoaded = true; updateDBStats();
+    toast('DB読込失敗（リポジトリにdb.jsonがない場合は正常です）', 'info');
+  }
+}
+function reloadDB() { loadDB(); }
+function updateDBStats() {
+  document.getElementById('db-stats').textContent = `DB: ${Object.keys(db).length}枚`;
+}
+
+// ── 検索 ────────────────────────────────────────────────
+let searchTimer = null;
+function onSearchInput() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 350);
+}
+
+async function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  const results = document.getElementById('search-results');
+
+  if (!q) {
+    results.innerHTML = '<div class="empty-state">検索ワードを入力してください</div>';
+    return;
+  }
+
+  // ローカルDB検索
+  const localHits = searchLocal(q);
+
+  if (localHits.length > 0) {
+    renderSearchResults(localHits, 'local');
+    return;
+  }
+
+  // 未登録 → API検索
+  results.innerHTML = '<div class="empty-state"><span class="spinner"></span> digimoncard.io で検索中...</div>';
+  try {
+    const apiHits = await searchAPI(q);
+    if (apiHits.length === 0) {
+      results.innerHTML = '<div class="empty-state">該当なし</div>';
+    } else {
+      renderSearchResults(apiHits, 'api');
+    }
+  } catch(e) {
+    results.innerHTML = `<div class="empty-state" style="color:#ff8080">検索エラー: ${e.message}</div>`;
+  }
+}
+
+function searchLocal(q) {
+  const lq = q.toLowerCase();
+  return Object.values(db).filter(c => {
+    const colorOk = !activeColor || c.color === activeColor || (c.colors||[]).includes(activeColor);
+    if (!colorOk) return false;
+    return (c.name_ja||'').toLowerCase().includes(lq)
+        || (c.name_en||'').toLowerCase().includes(lq)
+        || (c.id||'').toLowerCase().includes(lq)
+        || (c.effect_ja||'').toLowerCase().includes(lq)
+        || (c.effect_en||'').toLowerCase().includes(lq);
+  }).slice(0, 60);
+}
+
+async function searchAPI(q) {
+  const encoded = encodeURIComponent(`${DIGICA_API}?series=&card_name=${encodeURIComponent(q)}&number=&type=&color=&form=&attribute=&level=&play_cost=&evolution_cost=&dp=&illustrator=&pack=&parallel=&rarity=&sort=name&sortdirection=asc&p=1`);
+  const r = await fetch(`${ALLORIGINS}${encoded}`);
+  const data = await r.json();
+  const cards = JSON.parse(data.contents);
+  return Array.isArray(cards) ? cards.map(apiCardToLocal) : [];
+}
+
+function apiCardToLocal(c) {
+  return {
+    id: c.cardnumber,
+    name_en: c.name,
+    name_ja: db[c.cardnumber]?.name_ja || c.name,
+    color: c.color,
+    colors: c.color ? [c.color] : [],
+    level: c.level,
+    type: c.cardtype,
+    dp: c.dp,
+    cost: c.playcost,
+    effect_en: c.effect,
+    effect_ja: db[c.cardnumber]?.effect_ja || c.effect || '',
+    _source: 'api',
+    image_url: c.image_url || '',
+  };
+}
+
+function toggleColorFilter(color) {
+  activeColor = (activeColor === color) ? null : color;
+  document.querySelectorAll('[id^="filter-"]').forEach(b => b.classList.remove('active'));
+  const id = color ? `filter-${color}` : 'filter-all';
+  document.getElementById(id)?.classList.add('active');
+  if (document.getElementById('search-input').value.trim()) doSearch();
+}
+
+// ── 検索結果レンダリング ─────────────────────────────────
+function renderSearchResults(cards, source) {
+  const el = document.getElementById('search-results');
+  if (cards.length === 0) { el.innerHTML = '<div class="empty-state">該当なし</div>'; return; }
+  el.innerHTML = cards.map(c => {
+    const imgSrc = db[c.id] ? `${RAW_BASE}/cards/${c.id}.jpg` : (c.image_url || '');
+    const badge = source === 'local'
+      ? '<span class="card-source-badge badge-local">登録済</span>'
+      : '<span class="card-source-badge badge-api">API</span>';
+    const colorDot = getColorHex(c.color) ? `<span class="color-dot" style="background:${getColorHex(c.color)}"></span>` : '';
+    return `
+    <div class="card-item" id="ci-${c.id}" onclick="showCardDetail('${c.id}', ${JSON.stringify(c).replace(/"/g,'&quot;')})">
+      <div class="card-thumb">
+        ${imgSrc ? `<img src="${imgSrc}" onerror="this.parentElement.innerHTML='?'">` : '?'}
+      </div>
+      <div class="card-info">
+        <div class="card-name">${c.name_ja || c.name_en || c.id}</div>
+        <div class="card-meta">${c.id} ${colorDot}${c.color||''} ${c.level ? 'Lv'+c.level : ''} ${c.type||''}</div>
+      </div>
+      ${badge}
+    </div>`;
+  }).join('');
+}
+
+// ── カード詳細 ───────────────────────────────────────────
+function showCardDetail(id, card) {
+  document.querySelectorAll('.card-item').forEach(el => el.classList.remove('selected'));
+  document.getElementById(`ci-${id}`)?.classList.add('selected');
+  selectedCardId = id;
+
+  // ローカルDBを優先
+  const c = db[id] || card;
+  const imgSrc = db[id] ? `${RAW_BASE}/cards/${id}.jpg` : (c.image_url || '');
+  const colorHex = getColorHex(c.color);
+
+  const detail = document.getElementById('card-detail');
+  detail.innerHTML = `
+    <div class="card-detail-img">
+      ${imgSrc
+        ? `<img src="${imgSrc}" onerror="this.outerHTML='<div class=\\'no-image\\'>画像なし</div>'">`
+        : '<div class="no-image">画像なし</div>'}
+      ${!db[id] ? `<button class="btn btn-primary" onclick="registerSingleCard('${id}')">この1枚を登録</button>` : ''}
+      ${db[id] ? `<button class="btn btn-secondary" onclick="openEditCard('${id}')">✏️ 編集</button>` : ''}
+    </div>
+    <div class="card-detail-body">
+      <h2>${c.name_ja || c.name_en || id}</h2>
+      ${c.name_ja && c.name_en && c.name_ja !== c.name_en ? `<div style="font-size:.8rem; color:var(--text2); margin-bottom:4px;">${c.name_en}</div>` : ''}
+      <div class="card-id">${id} ${db[id] ? '✅ 登録済み' : '⬜ 未登録'}</div>
+      <div class="card-stats">
+        <div class="stat-box">
+          <div class="stat-label">色</div>
+          <div class="stat-value">${colorHex ? `<span class="color-dot" style="background:${colorHex}"></span>` : ''}${c.color || '—'}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">タイプ</div>
+          <div class="stat-value">${c.type || c.cardtype || '—'}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">レベル</div>
+          <div class="stat-value">${c.level || '—'}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">コスト / DP</div>
+          <div class="stat-value">${c.cost ?? c.playcost ?? '—'} / ${c.dp || '—'}</div>
+        </div>
+      </div>
+      ${(c.effect_ja || c.effect_en) ? `
+      <div class="effect-label">効果テキスト</div>
+      <div class="effect-box">${escapeHtml(c.effect_ja || c.effect_en || '')}</div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function getColorHex(color) {
+  const map = { Red:'#c0302a', Blue:'#2060c0', Yellow:'#c0a010', Green:'#208040', Black:'#606060', Purple:'#6030a0', White:'#909090' };
+  return map[color] || null;
+}
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── 1枚登録（検索結果から） ────────────────────────────────
+async function registerSingleCard(id) {
+  const ak = getAnthropicKey();
+  if (!ak) { toast('Anthropic API Keyを設定してください', 'error'); return; }
+  const ghk = getGHToken();
+  if (!ghk) { toast('GitHub Tokenを設定してください', 'error'); return; }
+  toast(`${id} を取得・翻訳中...`, 'info');
+  try {
+    const data = await fetchCardDataFromAPI(id);
+    if (!data) { toast('APIからデータ取得失敗', 'error'); return; }
+    const translated = await translateCard(data, ak);
+    await saveCardToDB(translated, null, ghk);
+    db[id] = translated;
+    updateDBStats();
+    showCardDetail(id, translated);
+    toast(`${id} 登録完了`, 'success');
+  } catch(e) {
+    toast(`登録失敗: ${e.message}`, 'error');
+  }
+}
+
+async function fetchCardDataFromAPI(id) {
+  try {
+    const encoded = encodeURIComponent(`${DIGICA_API}?number=${encodeURIComponent(id)}&sort=name&sortdirection=asc&p=1`);
+    const r = await fetch(`${ALLORIGINS}${encoded}`);
+    const data = await r.json();
+    const cards = JSON.parse(data.contents);
+    return Array.isArray(cards) && cards.length > 0 ? cards[0] : null;
+  } catch { return null; }
+}
+
+// ── PDF登録フロー ────────────────────────────────────────
+let pdfFile = null;
+let croppedCards = []; // { canvas, effectCanvas }[]
+
+function onPDFSelected(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  pdfFile = file;
+  loadPDFPreview(file);
+}
+
+async function loadPDFPreview(file) {
+  const pdfjsLib = window['pdfjs-dist/build/pdf'];
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  const totalPages = pdf.numPages;
+
+  document.getElementById('preview-info').textContent = `${totalPages}ページ検出 — 切り抜き確認`;
+  document.getElementById('preview-section').style.display = 'block';
+
+  const grid = document.getElementById('preview-grid');
+  grid.innerHTML = '';
+  croppedCards = [];
+
+  // 最初の数ページをプレビュー
+  const previewPages = Math.min(totalPages, 3);
+  for (let p = 1; p <= previewPages; p++) {
+    const page = await pdf.getPage(p);
+    const scale = 3.0;
+    const vp = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+
+    // 切り抜き
+    const crops = cropPage(canvas);
+    crops.forEach((crop, idx) => {
+      croppedCards.push(crop);
+      const div = document.createElement('div');
+      div.className = 'preview-card';
+      div.appendChild(crop.canvas);
+      const label = document.createElement('div');
+      label.className = 'preview-card-label';
+      label.textContent = `p${p}-${idx+1}`;
+      div.appendChild(label);
+      grid.appendChild(div);
+    });
+  }
+
+  // 残りページのカードもcroppedCardsに追加（表示なし）
+  for (let p = previewPages + 1; p <= totalPages; p++) {
+    const page = await pdf.getPage(p);
+    const scale = 3.0;
+    const vp = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    cropPage(canvas).forEach(c => croppedCards.push(c));
+  }
+
+  document.getElementById('preview-info').textContent =
+    `${totalPages}ページ / ${croppedCards.length}枚検出 — 最初の3ページをプレビュー表示`;
+}
+
+function cropPage(pageCanvas) {
+  const W = pageCanvas.width;
+  const H = pageCanvas.height;
+  const ratio = H / W;
+
+  // 行数自動判定
+  const cols = [86, 624, 1161, 1699];
+  let rows;
+  if (ratio > 1.2) {
+    rows = [136, 890, 1641, 2386]; // 3行
+  } else {
+    const mid = Math.round((136 + 2386) / 2);
+    rows = [136, mid, 2386];        // 2行
+  }
+
+  // スケール変換（座標は1786x2526基準）
+  const scaleX = W / 1786;
+  const scaleY = H / 2526;
+
+  const results = [];
+  for (let r = 0; r < rows.length - 1; r++) {
+    for (let c = 0; c < cols.length - 1; c++) {
+      const x1 = Math.round(cols[c] * scaleX);
+      const y1 = Math.round(rows[r] * scaleY);
+      const x2 = Math.round(cols[c+1] * scaleX);
+      const y2 = Math.round(rows[r+1] * scaleY);
+      const cw = x2 - x1, ch = y2 - y1;
+
+      // カード全体
+      const cv = document.createElement('canvas');
+      cv.width = cw; cv.height = ch;
+      cv.getContext('2d').drawImage(pageCanvas, x1, y1, cw, ch, 0, 0, cw, ch);
+
+      // 効果エリア（下33%）を2倍拡大
+      const effH = Math.round(ch * 0.33);
+      const effY = ch - effH;
+      const ecv = document.createElement('canvas');
+      ecv.width = cw * 2; ecv.height = effH * 2;
+      ecv.getContext('2d').drawImage(cv, 0, effY, cw, effH, 0, 0, cw*2, effH*2);
+
+      results.push({ canvas: cv, effectCanvas: ecv });
+    }
+  }
+  return results;
+}
+
+function clearPDF() {
+  pdfFile = null; croppedCards = [];
+  document.getElementById('preview-section').style.display = 'none';
+  document.getElementById('progress-section').style.display = 'none';
+  document.getElementById('pdf-input').value = '';
+}
+
+// ── 登録開始 ────────────────────────────────────────────
+async function startRegistration() {
+  const ak = getAnthropicKey();
+  if (!ak) { toast('Anthropic API Keyを設定してください', 'error'); showScreen('settings'); return; }
+  const ghk = getGHToken();
+  if (!ghk) { toast('GitHub Tokenを設定してください', 'error'); showScreen('settings'); return; }
+
+  document.getElementById('btn-start-register').disabled = true;
+  document.getElementById('progress-section').style.display = 'block';
+  const logEl = document.getElementById('progress-log');
+  logEl.innerHTML = '';
+
+  const total = croppedCards.length;
+  let done = 0, saved = 0, skipped = 0, errors = 0;
+
+  function log(msg, cls='log-info') {
+    logEl.innerHTML += `<div class="${cls}">${escapeHtml(msg)}</div>`;
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function setProgress(n, t) {
+    document.getElementById('progress-bar').style.width = `${Math.round(n/t*100)}%`;
+    document.getElementById('progress-count').textContent = `${n} / ${t}`;
+  }
+
+  log(`処理開始: ${total}枚`, 'log-info');
+
+  for (let i = 0; i < croppedCards.length; i++) {
+    const { canvas, effectCanvas } = croppedCards[i];
+    setProgress(i, total);
+    document.getElementById('progress-title').textContent = `処理中... (${i+1}/${total})`;
+
+    let cardId;
+    try {
+      cardId = await readCardIDFromClaude(canvas, ak);
+    } catch(e) {
+      log(`[${i+1}] ID読取失敗: ${e.message}`, 'log-err'); errors++; done++; continue;
+    }
+
+    if (!cardId || !CARD_ID_RE.test(cardId)) {
+      log(`[${i+1}] 有効なカードIDなし (got: ${cardId||'none'})`, 'log-skip'); skipped++; done++; continue;
+    }
+
+    if (db[cardId]) {
+      log(`[${i+1}] ${cardId} — スキップ（登録済み）`, 'log-skip'); skipped++; done++; continue;
+    }
+
+    log(`[${i+1}] ${cardId} 取得中...`);
+
+    let apiData;
+    try {
+      apiData = await fetchCardDataFromAPI(cardId);
+      if (!apiData) throw new Error('APIデータなし');
+    } catch(e) {
+      log(`[${i+1}] ${cardId} APIエラー: ${e.message}`, 'log-err'); errors++; done++; continue;
+    }
+
+    let translated;
+    try {
+      translated = await translateCard(apiData, ak);
+    } catch(e) {
+      log(`[${i+1}] ${cardId} 翻訳エラー: ${e.message}`, 'log-err'); errors++; done++; continue;
+    }
+
+    try {
+      await saveCardToDB(translated, canvas, ghk);
+      db[cardId] = translated;
+      saved++;
+      log(`[${i+1}] ${cardId} ${translated.name_ja || translated.name_en} — 保存完了 ✅`, 'log-ok');
+    } catch(e) {
+      log(`[${i+1}] ${cardId} 保存エラー: ${e.message}`, 'log-err'); errors++;
+    }
+    done++;
+
+    // レート制限対策: 少し待つ
+    await sleep(500);
+  }
+
+  setProgress(total, total);
+  document.getElementById('progress-title').textContent = '完了';
+  log(`\n完了: 保存=${saved}, スキップ=${skipped}, エラー=${errors}`, 'log-info');
+  updateDBStats();
+  document.getElementById('btn-start-register').disabled = false;
+  toast(`登録完了: ${saved}枚追加`, 'success');
+}
+
+// ── Claude API: カードID読取 ──────────────────────────────
+async function readCardIDFromClaude(canvas, apiKey) {
+  const b64 = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
+  const body = {
+    model: 'claude-sonnet-4-5',
+    max_tokens: 50,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+        { type: 'text', text: 'このデジモンカードのカード番号（例: BT4-020, ST1-001, EX2-015, P-001）を返してください。カード番号だけを返し、それ以外は一切出力しないでください。カードが見えない場合は "none" とだけ返してください。' }
+      ]
+    }]
+  };
+  const r = await fetch(ANTHROPIC_API, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(`Claude API ${r.status}`);
+  const data = await r.json();
+  return (data.content?.[0]?.text || '').trim().toUpperCase();
+}
+
+// ── Claude API: 翻訳 ────────────────────────────────────
+async function translateCard(apiCard, apiKey) {
+  const terms = getTerms();
+  const termsStr = Object.entries(terms).map(([k,v])=>`${k} → ${v}`).join('\n');
+
+  const effectEn = apiCard.effect || '';
+  const inheritedEn = apiCard.inherited_effect || '';
+
+  let effectJa = effectEn;
+  let inheritedJa = inheritedEn;
+
+  if (effectEn || inheritedEn) {
+    const prompt = `以下のデジモンカードゲームの効果テキストを日本語に翻訳してください。
+用語辞書（これを必ず優先使用）:
+${termsStr}
+
+翻訳対象:
+効果: ${effectEn}
+${inheritedEn ? `進化元効果: ${inheritedEn}` : ''}
+
+JSON形式で出力: {"effect_ja": "...", "inherited_ja": "..."}
+JSONのみ返してください。`;
+
+    const r = await fetch(ANTHROPIC_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    if (r.ok) {
+      const d = await r.json();
+      try {
+        const txt = d.content?.[0]?.text || '{}';
+        const clean = txt.replace(/```json|```/g, '').trim();
+        const parsed = JSON.parse(clean);
+        effectJa = parsed.effect_ja || effectEn;
+        inheritedJa = parsed.inherited_ja || inheritedEn;
+      } catch { /* 失敗時は英語のまま */ }
+    }
+  }
+
+  return {
+    id: apiCard.cardnumber,
+    name_ja: apiCard.name, // APIに日本語名がある場合はそちらを使う
+    name_en: apiCard.name,
+    color: apiCard.color,
+    colors: apiCard.color ? [apiCard.color] : [],
+    level: apiCard.level,
+    type: apiCard.cardtype,
+    dp: apiCard.dp,
+    cost: apiCard.playcost,
+    effect_en: effectEn,
+    effect_ja: effectJa,
+    inherited_en: inheritedEn,
+    inherited_ja: inheritedJa,
+    registered_at: new Date().toISOString(),
+  };
+}
+
+// ── GitHub 保存 ─────────────────────────────────────────
+async function saveCardToDB(card, cardCanvas, token) {
+  // 1. 既存 db.json の SHA を取得
+  const dbPath = 'cards/db.json';
+  let dbSha = null;
+  const dbGet = await fetch(`${GH_API}/repos/${GH_USER}/${GH_REPO}/contents/${dbPath}`, {
+    headers: { Authorization: `token ${token}` }
+  });
+  if (dbGet.ok) {
+    const meta = await dbGet.json();
+    dbSha = meta.sha;
+    // 既存データをマージ
+    const existing = JSON.parse(atob(meta.content.replace(/\n/g,'')));
+    Object.assign(db, existing);
+  }
+
+  // 2. db.json 更新
+  db[card.id] = card;
+  const dbContent = btoa(unescape(encodeURIComponent(JSON.stringify(db, null, 2))));
+  const putBody = {
+    message: `Add card: ${card.id}`,
+    content: dbContent,
+    branch: GH_BRANCH,
+  };
+  if (dbSha) putBody.sha = dbSha;
+
+  const dbPut = await fetch(`${GH_API}/repos/${GH_USER}/${GH_REPO}/contents/${dbPath}`, {
+    method: 'PUT',
+    headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(putBody)
+  });
+  if (!dbPut.ok) throw new Error(`db.json保存失敗: ${dbPut.status}`);
+
+  // 3. 画像保存（canvasがある場合）
+  if (cardCanvas) {
+    await saveCardImage(card.id, cardCanvas, token);
+  }
+}
+
+async function saveCardImage(cardId, canvas, token) {
+  const imgPath = `cards/${cardId}.jpg`;
+  // 既存SHA取得
+  let sha = null;
+  const get = await fetch(`${GH_API}/repos/${GH_USER}/${GH_REPO}/contents/${imgPath}`, {
+    headers: { Authorization: `token ${token}` }
+  });
+  if (get.ok) sha = (await get.json()).sha;
+
+  const b64 = canvas.toDataURL('image/jpeg', 0.88).split(',')[1];
+  const body = { message: `Add image: ${cardId}`, content: b64, branch: GH_BRANCH };
+  if (sha) body.sha = sha;
+  const put = await fetch(`${GH_API}/repos/${GH_USER}/${GH_REPO}/contents/${imgPath}`, {
+    method: 'PUT',
+    headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!put.ok) console.warn(`画像保存失敗: ${put.status}`);
+}
+
+// ── 設定画面 ────────────────────────────────────────────
+function loadSettingsUI() {
+  document.getElementById('gh-token').value = getGHToken();
+  document.getElementById('anthropic-key').value = getAnthropicKey();
+  document.getElementById('terms-editor').value = JSON.stringify(getTerms(), null, 2);
+}
+function saveGHToken() {
+  ls.set('gh_token', document.getElementById('gh-token').value.trim());
+  toast('GitHub Token保存済み', 'success');
+}
+function saveAnthropicKey() {
+  ls.set('anthropic_key', document.getElementById('anthropic-key').value.trim());
+  toast('Anthropic API Key保存済み', 'success');
+}
+
+async function testGHToken() {
+  const token = getGHToken();
+  const el = document.getElementById('gh-status');
+  el.innerHTML = '<span class="spinner"></span>';
+  try {
+    const r = await fetch(`${GH_API}/repos/${GH_USER}/${GH_REPO}`, {
+      headers: { Authorization: `token ${token}` }
+    });
+    if (r.ok) {
+      el.innerHTML = '<span class="status-dot status-ok"></span>接続OK';
+    } else {
+      el.innerHTML = `<span class="status-dot status-err"></span>エラー ${r.status}`;
+    }
+  } catch(e) {
+    el.innerHTML = `<span class="status-dot status-err"></span>${e.message}`;
+  }
+}
+
+async function testAnthropicKey() {
+  const key = getAnthropicKey();
+  const el = document.getElementById('anthropic-status');
+  el.innerHTML = '<span class="spinner"></span>';
+  try {
+    const r = await fetch(ANTHROPIC_API, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 10, messages: [{ role: 'user', content: 'ping' }] })
+    });
+    if (r.ok || r.status === 400) { // 400 = valid key, bad request
+      el.innerHTML = '<span class="status-dot status-ok"></span>接続OK';
+    } else {
+      el.innerHTML = `<span class="status-dot status-err"></span>エラー ${r.status}`;
+    }
+  } catch(e) {
+    el.innerHTML = `<span class="status-dot status-err"></span>${e.message}`;
+  }
+}
+
+function saveTerms() {
+  try {
+    const val = document.getElementById('terms-editor').value;
+    JSON.parse(val); // validation
+    ls.set('terms', val);
+    toast('用語辞書保存済み', 'success');
+  } catch(e) {
+    toast('JSON形式エラー: ' + e.message, 'error');
+  }
+}
+
+async function loadTermsFromGitHub() {
+  try {
+    const r = await fetch(`${RAW_BASE}/cards/terms.json?_=${Date.now()}`);
+    if (!r.ok) throw new Error('ファイルなし');
+    const data = await r.json();
+    document.getElementById('terms-editor').value = JSON.stringify(data, null, 2);
+    ls.set('terms', JSON.stringify(data));
+    toast('用語辞書をGitHubから読込完了', 'success');
+  } catch(e) {
+    toast('読込失敗: ' + e.message, 'error');
+  }
+}
+
+async function saveTermsToGitHub() {
+  const token = getGHToken();
+  if (!token) { toast('GitHub Tokenが必要です', 'error'); return; }
+  try {
+    const val = document.getElementById('terms-editor').value;
+    JSON.parse(val);
+    const path = 'cards/terms.json';
+    let sha = null;
+    const get = await fetch(`${GH_API}/repos/${GH_USER}/${GH_REPO}/contents/${path}`, {
+      headers: { Authorization: `token ${token}` }
+    });
+    if (get.ok) sha = (await get.json()).sha;
+    const body = { message: 'Update terms.json', content: btoa(unescape(encodeURIComponent(val))), branch: GH_BRANCH };
+    if (sha) body.sha = sha;
+    const put = await fetch(`${GH_API}/repos/${GH_USER}/${GH_REPO}/contents/${path}`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!put.ok) throw new Error(put.status);
+    toast('用語辞書をGitHubに保存完了', 'success');
+  } catch(e) {
+    toast('保存失敗: ' + e.message, 'error');
+  }
+}
+
+// ── カード編集モーダル（簡易） ─────────────────────────────
+function openEditCard(id) {
+  const c = db[id]; if (!c) return;
+  const name = prompt('カード名（日本語）:', c.name_ja || '');
+  if (name === null) return;
+  const effect = prompt('効果テキスト（日本語）:', c.effect_ja || '');
+  if (effect === null) return;
+  db[id].name_ja = name;
+  db[id].effect_ja = effect;
+  const token = getGHToken();
+  if (!token) { toast('GitHub Tokenが必要です', 'error'); return; }
+  saveCardToDB(db[id], null, token).then(() => {
+    toast(`${id} 更新完了`, 'success');
+    showCardDetail(id, db[id]);
+  }).catch(e => toast('保存失敗: ' + e.message, 'error'));
+}
+
+// ── ユーティリティ ────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── 初期化 ──────────────────────────────────────────────
+window.addEventListener('load', () => {
+  loadDB();
+  // PDF.js workerSrc 設定
+  if (window['pdfjs-dist/build/pdf']) {
+    window['pdfjs-dist/build/pdf'].GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+});
+</script>
+</body>
+</html>

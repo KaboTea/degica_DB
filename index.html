@@ -404,16 +404,46 @@
       </div>
     </div>
 
-    <div class="settings-group">
-      <h3>用語辞書（翻訳時に使用）</h3>
-      <div style="font-size:.78rem; color:var(--text2); margin-bottom:8px;">
-        JSON形式: { "英語": "日本語" }
+    <div class="settings-group" id="terms-group">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <h3 style="margin:0;">用語辞書（翻訳時に使用）</h3>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-secondary" style="font-size:.75rem;" onclick="loadTermsFromGitHub()">↓ GHから読込</button>
+          <button class="btn btn-secondary" style="font-size:.75rem;" onclick="saveTermsToGitHub()">↑ GHに保存</button>
+        </div>
       </div>
-      <textarea class="terms-editor" id="terms-editor"></textarea>
-      <div style="display:flex; gap:8px; margin-top:10px;">
-        <button class="btn btn-primary" onclick="saveTerms()">保存</button>
-        <button class="btn btn-secondary" onclick="loadTermsFromGitHub()">GitHubから読込</button>
-        <button class="btn btn-secondary" onclick="saveTermsToGitHub()">GitHubに保存</button>
+
+      <!-- カテゴリタブ -->
+      <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:10px;" id="terms-cat-tabs"></div>
+
+      <!-- 未登録キーワード -->
+      <div id="unknown-kw-section" style="display:none; margin-bottom:10px;">
+        <div style="font-size:.75rem; color:#c0a010; margin-bottom:6px;">⚠️ 未登録キーワード（英語のまま出力されているもの）</div>
+        <div id="unknown-kw-list" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- 表 -->
+      <div style="border:1px solid var(--border); border-radius:8px; overflow:hidden;">
+        <table style="width:100%; border-collapse:collapse; font-size:.83rem;" id="terms-table">
+          <thead>
+            <tr style="background:var(--surface2);">
+              <th style="padding:8px 12px; text-align:left; color:var(--text2); font-weight:600; width:46%;">英語</th>
+              <th style="padding:8px 12px; text-align:left; color:var(--text2); font-weight:600; width:46%;">日本語</th>
+              <th style="padding:8px 12px; width:8%;"></th>
+            </tr>
+          </thead>
+          <tbody id="terms-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- 行追加 -->
+      <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
+        <input class="input-text" id="new-term-en" placeholder="英語（例: ＜NewKeyword＞）" style="flex:1;">
+        <input class="input-text" id="new-term-ja" placeholder="日本語（例: 《新キーワード》）" style="flex:1;">
+        <button class="btn btn-primary" onclick="addTermRow()">追加</button>
+      </div>
+      <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+        <button class="btn btn-primary" onclick="saveTermsFromTable()">💾 保存</button>
       </div>
     </div>
   </div>
@@ -441,33 +471,77 @@ let selectedCardId = null;
 let pdfPages = [];    // { canvas, crops: [{canvas, idx}] }
 
 // ── 設定デフォルト ──────────────────────────────────────
-const DEFAULT_TERMS = {
-  "[On Play]":          "【登場時】",
-  "[When Attacking]":   "【アタック時】",
-  "[When Blocking]":    "【ブロック時】",
-  "[End of Attack]":    "【アタック終了時】",
-  "[Your Turn]":        "【自分のターン】",
-  "[Opponent's Turn]":  "【相手のターン】",
-  "[All Turns]":        "【全てのターン】",
-  "[Security]":         "【セキュリティ】",
-  "[When Digivolving]": "【進化時】",
-  "＜Blocker＞":        "《ブロッカー》",
-  "＜Piercing＞":       "《貫通》",
-  "＜Rush＞":           "《ラッシュ》",
-  "＜Jamming＞":        "《ジャミング》",
-  "＜Reboot＞":         "《リブート》",
-  "＜Armor Purge＞":    "《アーマーパージ》",
-  "＜De-Digivolve＞":   "《退化》",
-  "＜Digisorption＞":   "《デジソープション》",
-  "Security Effect":    "セキュリティ効果",
-  "Inherited Effect":   "進化元効果",
-  "Digivolve":          "進化",
-  "trash":              "トラッシュ",
-  "memory":             "メモリー",
-  "suspend":            "レスト",
-  "unsuspend":          "アクティブ",
-  "DP":                 "DP"
+// terms.json はカテゴリ別ネスト形式 { "カテゴリ": { "英語": "日本語" } }
+// フラット変換して使う
+const DEFAULT_TERMS_NESTED = {
+  "効果トリガー": {
+    "[On Play]":                   "【登場時】",
+    "[When Digivolving]":          "【進化時】",
+    "[When Attacking]":            "【アタック時】",
+    "[When Blocking]":             "【ブロック時】",
+    "[End of Attack]":             "【アタック終了時】",
+    "[Your Turn]":                 "【自分のターン】",
+    "[Opponent's Turn]":           "【相手のターン】",
+    "[All Turns]":                 "【お互いのターン】",
+    "[Security]":                  "【セキュリティ】",
+    "[Main]":                      "【メイン】",
+    "[Once Per Turn]":             "【ターン1回】",
+    "[On Deletion]":               "【消滅時】",
+    "[Start of Your Turn]":        "【自分のターン開始時】",
+    "[End of Your Turn]":          "【自分のターン終了時】",
+    "[Start of Opponent's Turn]":  "【相手のターン開始時】",
+    "[End of Opponent's Turn]":    "【相手のターン終了時】",
+    "[When Moving]":               "【移動時】",
+    "[Activate: Main]":            "【起動効果】"
+  },
+  "キーワード効果": {
+    "＜Blocker＞":           "《ブロッカー》",
+    "＜Piercing＞":          "《貫通》",
+    "＜Rush＞":              "《速攻》",
+    "＜Jamming＞":           "《ジャミング》",
+    "＜Reboot＞":            "《再起動》",
+    "＜Security Attack +1＞":"《Sアタック+1》",
+    "＜Security Attack +2＞":"《Sアタック+2》",
+    "＜De-Digivolve＞":      "《退化》",
+    "＜Armor Purge＞":       "《アーマーパージ》",
+    "＜Digisorption＞":      "《吸収進化》",
+    "＜Blast Digivolve＞":   "《ブラスト進化》",
+    "＜Arts Digivolve＞":    "《アーツ進化》",
+    "＜Overflow＞":          "《オーバーフロー》",
+    "＜Raid＞":              "《突進》",
+    "＜Vortex＞":            "《ヴォルテクス》",
+    "＜S Attack +＞":        "《Sアタック+》",
+    "＜Barrier＞":           "《防壁》"
+  },
+  "ゲーム用語": {
+    "memory":             "メモリー",
+    "security":           "セキュリティ",
+    "trash":              "トラッシュ",
+    "digivolve":          "進化",
+    "suspend":            "レスト",
+    "unsuspend":          "アクティブ",
+    "delete":             "消滅",
+    "draw":               "ドロー",
+    "deck":               "デッキ",
+    "hand":               "手札",
+    "battle area":        "バトルエリア",
+    "breeding area":      "育成エリア",
+    "digivolution cards": "進化元",
+    "Use Req.":           "使用条件",
+    "DigiXros":           "デジクロス"
+  }
 };
+
+// ネスト形式 → フラット { "英語": "日本語" }
+function flattenTerms(nested) {
+  const flat = {};
+  for (const cat of Object.values(nested)) {
+    if (typeof cat === 'object' && !Array.isArray(cat)) {
+      Object.assign(flat, cat);
+    }
+  }
+  return flat;
+}
 
 // ── localStorage helpers ────────────────────────────────
 const ls = {
@@ -476,9 +550,20 @@ const ls = {
 };
 function getGHToken()       { return ls.get('gh_token') || ''; }
 function getAnthropicKey()  { return ls.get('anthropic_key') || ''; }
+// ネスト形式で返す（UI用）
+function getTermsNested() {
+  try {
+    const stored = JSON.parse(ls.get('terms') || 'null');
+    if (!stored) return DEFAULT_TERMS_NESTED;
+    const firstVal = Object.values(stored)[0];
+    // 旧フラット形式の場合はデフォルトを返す
+    if (typeof firstVal === 'string') return DEFAULT_TERMS_NESTED;
+    return stored;
+  } catch { return DEFAULT_TERMS_NESTED; }
+}
+// フラット形式で返す（翻訳処理用）
 function getTerms() {
-  try { return JSON.parse(ls.get('terms') || 'null') || DEFAULT_TERMS; }
-  catch { return DEFAULT_TERMS; }
+  return flattenTerms(getTermsNested());
 }
 
 // ── Toast ───────────────────────────────────────────────
@@ -949,26 +1034,90 @@ async function readCardIDFromClaude(canvas, apiKey) {
 }
 
 // ── Claude API: 翻訳 ────────────────────────────────────
+// ── キーワード・トリガーのみ辞書置換（未登録は英語のまま残す） ──────
+// ＜Xxx＞ と [Xxx] 形式だけを辞書引きして置換する
+// 辞書にないものはそのまま英語で残す
+function applyTermsToText(text, terms) {
+  if (!text) return text;
+  let result = text;
+
+  // ソートして長いキーを先に置換（部分一致防止）
+  const sorted = Object.entries(terms).sort((a,b) => b[0].length - a[0].length);
+
+  for (const [en, ja] of sorted) {
+    // キーワード系（＜...＞ や [...] 形式）のみ置換
+    // ゲーム用語は一般テキスト内で使われるためClaudeに任せる
+    const isKeyword = /^[＜\[]/.test(en);
+    if (!isKeyword) continue;
+    // 完全一致で置換（グローバル）
+    result = result.split(en).join(ja);
+  }
+  return result;
+}
+
+// 効果テキストから未登録キーワードを抽出して記録
+function extractUnknownKeywords(text, terms) {
+  if (!text) return [];
+  const unknown = [];
+  const kw1 = [...text.matchAll(/＜[^＞]+＞/g)].map(m => m[0]);
+  const kw2 = [...text.matchAll(/\[[^\]]+\]/g)].map(m => m[0]);
+  for (const kw of [...kw1, ...kw2]) {
+    if (!terms[kw]) unknown.push(kw);
+  }
+  return unknown;
+}
+
+// 未登録キーワードをlocalStorageに蓄積
+function recordUnknownKeywords(keywords) {
+  if (!keywords.length) return;
+  try {
+    const existing = JSON.parse(ls.get('unknown_keywords') || '[]');
+    const merged = [...new Set([...existing, ...keywords])];
+    ls.set('unknown_keywords', JSON.stringify(merged));
+  } catch { ls.set('unknown_keywords', JSON.stringify(keywords)); }
+}
+
 async function translateCard(apiCard, apiKey) {
   const terms = getTerms();
-  const termsStr = Object.entries(terms).map(([k,v])=>`${k} → ${v}`).join('\n');
 
-  const effectEn = apiCard.effect || '';
-  const inheritedEn = apiCard.inherited_effect || '';
+  const effectEn   = apiCard.effect || apiCard.main_effect || '';
+  const inheritedEn = apiCard.source_effect || apiCard.inherited_effect || '';
+  const altEn       = apiCard.alt_effect || '';
 
-  let effectJa = effectEn;
-  let inheritedJa = inheritedEn;
+  // ① キーワード・トリガーを辞書で先置換
+  const effectPre    = applyTermsToText(effectEn, terms);
+  const inheritedPre = applyTermsToText(inheritedEn, terms);
+  const altPre       = applyTermsToText(altEn, terms);
 
-  if (effectEn || inheritedEn) {
+  // ② 未登録キーワードを記録
+  const unknowns = [
+    ...extractUnknownKeywords(effectEn, terms),
+    ...extractUnknownKeywords(inheritedEn, terms),
+    ...extractUnknownKeywords(altEn, terms),
+  ];
+  recordUnknownKeywords(unknowns);
+
+  let effectJa    = effectPre;
+  let inheritedJa = inheritedPre;
+  let altJa       = altPre;
+
+  // ③ Claudeで残りの自然文を翻訳
+  // ※ キーワードは既に置換済み or 英語のまま残っているのでClaudeに変えさせない
+  const needsTranslation = effectPre || inheritedPre || altPre;
+  if (needsTranslation) {
     const prompt = `以下のデジモンカードゲームの効果テキストを日本語に翻訳してください。
-用語辞書（これを必ず優先使用）:
-${termsStr}
+
+ルール:
+- 【】《》で囲まれた語句はすでに翻訳済みなので変更しないこと
+- ＜Xxx＞ や [Xxx] 形式の語句が残っている場合も変更しないこと（英語のまま残す）
+- 自然文の部分のみ日本語に翻訳すること
 
 翻訳対象:
-効果: ${effectEn}
-${inheritedEn ? `進化元効果: ${inheritedEn}` : ''}
+効果: ${effectPre}
+${inheritedPre ? `進化元効果: ${inheritedPre}` : ''}
+${altPre ? `代替効果: ${altPre}` : ''}
 
-JSON形式で出力: {"effect_ja": "...", "inherited_ja": "..."}
+JSON形式で出力: {"effect_ja": "...", "inherited_ja": "...", "alt_ja": "..."}
 JSONのみ返してください。`;
 
     const r = await fetch(ANTHROPIC_API, {
@@ -991,27 +1140,40 @@ JSONのみ返してください。`;
         const txt = d.content?.[0]?.text || '{}';
         const clean = txt.replace(/```json|```/g, '').trim();
         const parsed = JSON.parse(clean);
-        effectJa = parsed.effect_ja || effectEn;
-        inheritedJa = parsed.inherited_ja || inheritedEn;
-      } catch { /* 失敗時は英語のまま */ }
+        effectJa    = parsed.effect_ja    || effectPre;
+        inheritedJa = parsed.inherited_ja || inheritedPre;
+        altJa       = parsed.alt_ja       || altPre;
+      } catch { /* 失敗時は置換済みテキストのまま */ }
     }
   }
 
   return {
-    id: apiCard.cardnumber,
-    name_ja: apiCard.name, // APIに日本語名がある場合はそちらを使う
-    name_en: apiCard.name,
-    color: apiCard.color,
-    colors: apiCard.color ? [apiCard.color] : [],
-    level: apiCard.level,
-    type: apiCard.cardtype,
-    dp: apiCard.dp,
-    cost: apiCard.playcost,
-    effect_en: effectEn,
-    effect_ja: effectJa,
-    inherited_en: inheritedEn,
-    inherited_ja: inheritedJa,
-    registered_at: new Date().toISOString(),
+    id:               apiCard.cardnumber || apiCard.id,
+    name_ja:          apiCard.name,
+    name_en:          apiCard.name,
+    color:            apiCard.color,
+    color2:           apiCard.color2 || null,
+    colors:           [apiCard.color, apiCard.color2].filter(Boolean),
+    level:            apiCard.level,
+    type:             apiCard.cardtype || apiCard.type,
+    dp:               apiCard.dp,
+    cost:             apiCard.playcost || apiCard.play_cost,
+    evolution_cost:   apiCard.evolution_cost,
+    evolution_color:  apiCard.evolution_color,
+    evolution_level:  apiCard.evolution_level,
+    xros_req:         apiCard.xros_req || '',
+    digi_type:        apiCard.digi_type,
+    digi_type2:       apiCard.digi_type2 || null,
+    form:             apiCard.form || apiCard.stage,
+    attribute:        apiCard.attribute,
+    effect_en:        effectEn,
+    effect_ja:        effectJa,
+    inherited_en:     inheritedEn,
+    inherited_ja:     inheritedJa,
+    alt_effect_en:    altEn,
+    alt_effect_ja:    altJa,
+    rarity:           apiCard.rarity,
+    registered_at:    new Date().toISOString(),
   };
 }
 
@@ -1075,11 +1237,154 @@ async function saveCardImage(cardId, canvas, token) {
 }
 
 // ── 設定画面 ────────────────────────────────────────────
+let currentTermsCat = null; // 現在表示中のカテゴリ
+
 function loadSettingsUI() {
   document.getElementById('gh-token').value = getGHToken();
   document.getElementById('anthropic-key').value = getAnthropicKey();
-  document.getElementById('terms-editor').value = JSON.stringify(getTerms(), null, 2);
+  renderTermsUI();
 }
+
+// 辞書UI全体を描画
+function renderTermsUI() {
+  const nested = getTermsNested();
+  const cats = Object.keys(nested);
+  if (!currentTermsCat || !nested[currentTermsCat]) currentTermsCat = cats[0];
+
+  // カテゴリタブ
+  const tabEl = document.getElementById('terms-cat-tabs');
+  tabEl.innerHTML = cats.map(cat => `
+    <button class="btn ${cat === currentTermsCat ? 'btn-primary' : 'btn-secondary'}"
+      style="font-size:.75rem; padding:4px 10px;"
+      onclick="switchTermsCat('${cat}')">${cat}</button>
+  `).join('');
+
+  // 未登録キーワード
+  renderUnknownKeywords();
+
+  // テーブル
+  renderTermsTable(nested[currentTermsCat] || {});
+}
+
+function switchTermsCat(cat) {
+  currentTermsCat = cat;
+  renderTermsUI();
+}
+
+function renderTermsTable(entries) {
+  const tbody = document.getElementById('terms-tbody');
+  tbody.innerHTML = Object.entries(entries).map(([en, ja], i) => `
+    <tr style="border-top:1px solid var(--border);" id="trow-${i}">
+      <td style="padding:6px 12px;">
+        <input class="input-text" style="font-size:.8rem; padding:4px 8px;" value="${escapeAttr(en)}"
+          data-idx="${i}" data-field="en" onchange="onTermCellChange(this)">
+      </td>
+      <td style="padding:6px 12px;">
+        <input class="input-text" style="font-size:.8rem; padding:4px 8px;" value="${escapeAttr(ja)}"
+          data-idx="${i}" data-field="ja" onchange="onTermCellChange(this)">
+      </td>
+      <td style="padding:6px 8px; text-align:center;">
+        <button class="btn btn-danger" style="font-size:.7rem; padding:3px 8px;"
+          onclick="deleteTermRow(${i})">✕</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// テーブルから現在カテゴリのエントリを収集
+function collectCurrentCatEntries() {
+  const rows = document.querySelectorAll('#terms-tbody tr');
+  const result = {};
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const en = inputs[0]?.value.trim();
+    const ja = inputs[1]?.value.trim();
+    if (en) result[en] = ja || en;
+  });
+  return result;
+}
+
+function onTermCellChange() { /* 変更はsave時に収集 */ }
+
+function deleteTermRow(idx) {
+  document.getElementById(`trow-${idx}`)?.remove();
+}
+
+function addTermRow() {
+  const en = document.getElementById('new-term-en').value.trim();
+  const ja = document.getElementById('new-term-ja').value.trim();
+  if (!en) { toast('英語キーを入力してください', 'error'); return; }
+  const tbody = document.getElementById('terms-tbody');
+  const idx = tbody.rows.length;
+  const tr = document.createElement('tr');
+  tr.style.borderTop = '1px solid var(--border)';
+  tr.id = `trow-${idx}`;
+  tr.innerHTML = `
+    <td style="padding:6px 12px;">
+      <input class="input-text" style="font-size:.8rem; padding:4px 8px;" value="${escapeAttr(en)}"
+        data-idx="${idx}" data-field="en">
+    </td>
+    <td style="padding:6px 12px;">
+      <input class="input-text" style="font-size:.8rem; padding:4px 8px;" value="${escapeAttr(ja)}"
+        data-idx="${idx}" data-field="ja">
+    </td>
+    <td style="padding:6px 8px; text-align:center;">
+      <button class="btn btn-danger" style="font-size:.7rem; padding:3px 8px;"
+        onclick="deleteTermRow(${idx})">✕</button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+  document.getElementById('new-term-en').value = '';
+  document.getElementById('new-term-ja').value = '';
+}
+
+// 未登録キーワード表示
+function renderUnknownKeywords() {
+  const stored = JSON.parse(ls.get('unknown_keywords') || '[]');
+  const terms = getTerms();
+  const actual = stored.filter(k => !terms[k]);
+  const section = document.getElementById('unknown-kw-section');
+  const listEl  = document.getElementById('unknown-kw-list');
+  if (!actual.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  listEl.innerHTML = actual.map(kw => `
+    <button class="btn btn-secondary" style="font-size:.72rem; padding:3px 8px; border-color:#c0a010; color:#c0a010;"
+      onclick="addUnknownKw('${escapeAttr(kw)}')">${escapeHtml(kw)} ＋</button>
+  `).join('');
+}
+
+// 未登録キーワードを「追加」フォームに展開
+function addUnknownKw(kw) {
+  document.getElementById('new-term-en').value = kw;
+  document.getElementById('new-term-ja').value = '';
+  document.getElementById('new-term-ja').focus();
+  // 対象カテゴリに切り替え
+  const isKw = /^[＜\[]/.test(kw);
+  if (isKw) {
+    const cat = kw.startsWith('＜') ? 'キーワード効果' : '効果トリガー';
+    const nested = getTermsNested();
+    if (nested[cat]) { currentTermsCat = cat; renderTermsUI(); }
+  }
+}
+
+// テーブルから保存
+function saveTermsFromTable() {
+  const nested = getTermsNested();
+  // 現在タブの内容を収集してマージ
+  nested[currentTermsCat] = collectCurrentCatEntries();
+  ls.set('terms', JSON.stringify(nested));
+  // 保存したキーワードを未登録リストから除去
+  const flat = flattenTerms(nested);
+  const unknown = JSON.parse(ls.get('unknown_keywords') || '[]');
+  ls.set('unknown_keywords', JSON.stringify(unknown.filter(k => !flat[k])));
+  renderTermsUI();
+  toast('用語辞書を保存しました', 'success');
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function saveGHToken() {
   ls.set('gh_token', document.getElementById('gh-token').value.trim());
   toast('GitHub Token保存済み', 'success');
@@ -1148,8 +1453,9 @@ async function loadTermsFromGitHub() {
     const r = await fetch(`${RAW_BASE}/cards/terms.json?_=${Date.now()}`);
     if (!r.ok) throw new Error('ファイルなし');
     const data = await r.json();
-    document.getElementById('terms-editor').value = JSON.stringify(data, null, 2);
     ls.set('terms', JSON.stringify(data));
+    currentTermsCat = null;
+    renderTermsUI();
     toast('用語辞書をGitHubから読込完了', 'success');
   } catch(e) {
     toast('読込失敗: ' + e.message, 'error');
@@ -1159,9 +1465,13 @@ async function loadTermsFromGitHub() {
 async function saveTermsToGitHub() {
   const token = getGHToken();
   if (!token) { toast('GitHub Tokenが必要です', 'error'); return; }
+  // 現在タブを先に保存
+  const nested = getTermsNested();
+  nested[currentTermsCat] = collectCurrentCatEntries();
+  ls.set('terms', JSON.stringify(nested));
+
   try {
-    const val = document.getElementById('terms-editor').value;
-    JSON.parse(val);
+    const val = JSON.stringify(nested, null, 2);
     const path = 'cards/terms.json';
     let sha = null;
     const get = await fetch(`${GH_API}/repos/${GH_USER}/${GH_REPO}/contents/${path}`, {
